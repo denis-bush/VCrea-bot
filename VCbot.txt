@@ -1,0 +1,246 @@
+﻿// Константы
+var API_TOKEN = '[TOKEN]'; // токен бота
+var URL = 'https://api.telegram.org/bot' + API_TOKEN + '/'; // ссылка на бота для работы с API
+var APP_URL = '[URL]'; // ссылка на развёртывание приложения
+var SHEET1 = SpreadsheetApp.openById('[ID]').getSheets()[0] // Таблица участников
+var SHEETACHIVE = SpreadsheetApp.openById('[ID]').getSheets()[0] // Таблица достижений
+
+var COLUMS = { 'Id': 'A', "Имя": 'B', 'Уровень': 'C', 'Класс': 'D', 'Опыт': 'E', 'Бэджи': 'F', 'Жизни': 'G', 'Тим лидер': 'H' };
+var INTTOCOLIMS = { 1: 'A', 2: 'B', 3: 'C', 4: 'D', 5: 'E', 6: 'F', 7: 'G', 8: 'H', 9: 'I', 10: 'J', 11: 'K', 12: 'L', 13: 'M', 14: 'N', 15: 'O', 16: 'P', 17: 'Q', 18: 'R', 19: 'S', 20: 'T', 21: 'U', 22: 'W', 23: 'X'};
+var COLUMSINT = { 'Id': 1, "Имя": 2, 'Уровень': 3, 'Класс': '4', 'Опыт': 5, 'Бэджи': 6, 'Жизни': 7, 'Тим лидер': 8 };
+var TEAMLEADERS = ['Ксюша', 'ксюша', 'Оля', 'оля', 'Ира', 'ира', 'Ангелина', 'ангелина','С прошлого года','с прошлого года'];
+var SUPPORTID = 1032264542;
+
+// Установка веб-хука
+function setWebHook() {
+  var response = UrlFetchApp.fetch(URL + 'setWebHook?url=' + APP_URL);
+  Logger.log(response.getContentText());
+}
+
+function sendMenu(chat_id) {
+  var text = "Теперь можно не искать команды, а использовать встроенные в телеграмм кнопки для вызова нужной 😏";
+  var keyboard = {
+    'keyboard': [['/info', '/achive'], ['/number', '/shop']],
+    'resize_keyboard': true
+  };
+
+  let payload = {
+    'method': 'sendMessage',
+    'chat_id': String(chat_id),
+    'text': text,
+    'parse_mode': 'HTML',
+    'reply_markup': JSON.stringify(keyboard)
+  };
+  let data = {
+    'method': 'post',
+    'payload': payload
+  };
+  UrlFetchApp.fetch('https://api.telegram.org/bot' + API_TOKEN + '/', data);
+}
+
+// Вывод информации о полученных данных при открытии страницы приложения
+function doGet(e) {
+  return HtmlService.createHtmlOutput(JSON.stringify(e, null, 4));
+}
+
+// Отправить сообщение с заданным текстом
+function sendText(id, text) {
+  UrlFetchApp.fetch(URL + 'sendMessage?chat_id=' + id + "&text=" + text);
+}
+
+// Отклик на получение любого сообщения
+function doPost(e) {
+  var update = JSON.parse(e.postData.contents); // полное содержание полученного сообщения
+
+  // проверяем тип полученного, нам нужно только "сообщение"
+  if (update.hasOwnProperty('message')) {
+    var msg = update.message;
+    var chatId = msg.chat.id;
+    var id = update.message.from.id; // id отправителя
+    var userLink = 't.me/' + update.message.from.username;
+    var isReadable = false;
+    var message = "Сообщение не распознано";
+
+    var userNomber = -1;
+    var usersCount = parseInt(SHEET1.getRange(COLUMS["Id"] + String(1)).getValue());
+    var userIds = SHEET1.getRange(3, COLUMSINT["Id"], usersCount, 1).getValues();
+
+    for (var i = 0; i < usersCount; i++) {
+      if (userIds[i][0] == String(id)) {
+        userNomber = i + 1;
+        break;
+      }
+    }
+
+    // проверяем, является ли сообщение командой к боту
+    if (msg.hasOwnProperty('entities') && msg.entities[0].type == 'bot_command') {
+
+      if (userNomber != -1) {
+        var usersLifes = SHEET1.getRange(COLUMS["Жизни"] + String(userNomber + 2)).getValue();
+      }
+
+      if (usersLifes == '') {
+        isReadable = true;
+        message = "К сожалению ты умер( \nМожешь либо узнать свой уникальный номер командой /nomber \nИли узнать у своего тим-лида, как вернуться в игру";
+      }
+
+      if (msg.text == '/number') {
+        isReadable = true;
+
+
+        if (userNomber != -1) {
+          message = "Твой уникальный номер: " + userNomber;
+        }
+        else {
+          message = "Информация об участнике не найдена. Ты точно зарегестрирован? \n/start";
+        }
+      }
+
+      if (msg.text == '/help' && isReadable == false) {
+        isReadable = true;
+        sendMenu(chatId);
+        message = "Список команд:\n/start - регистрация (работает только на новых пользователей) \n/help - команды бота \n/info - информация об аккаунте \n/achive - узнать полученные достижения \n/number - узнать свой уникальный номер.";
+      }
+
+      // проверяем на название команды - /statistics
+      // если все проверки пройдены - запускаем основной код 
+
+      if (msg.text == '/achive' && isReadable == false) {
+        isReadable = true;
+
+        if (userNomber != -1) {
+          var achiveCount = parseInt(SHEETACHIVE.getRange('A' + String(1)).getValue());
+          var yesAchive = '';
+          var noAchive = '';
+          var achiveName = '';
+          var achiveState = '';
+          var achiveDescription = '';
+
+          for (var i = 0; i < achiveCount; i++) {
+            achiveName = SHEETACHIVE.getRange(INTTOCOLIMS[i + 3] + String(2)).getValue();
+            achiveDescription = SHEETACHIVE.getRange(INTTOCOLIMS[i + 3] + String(1)).getValue();
+            achiveState = SHEETACHIVE.getRange(INTTOCOLIMS[i + 3] + String(userNomber + 2)).getValue();
+
+            if (achiveState == 'да') {
+              yesAchive = yesAchive + '🟣' + achiveName + ' - ' + achiveDescription + '\n\n';
+            }
+            else {
+              noAchive = noAchive + '⚪️' + achiveName + ' - ' + achiveDescription + '\n\n';
+            }
+          }
+
+          if (yesAchive == '') {
+            yesAchive = 'Таких нет 😵‍💫\n\n';
+          }
+
+          if (noAchive == '') {
+            noAchive = 'Таких нет 💞💞💞';
+          }
+
+          message = 'Полученные достижения: \n\n' + yesAchive + "\nДостижения, которые предстоит получить: \n\n" + noAchive;
+
+        }
+        else {
+          message = "Информация об участнике не найдена. Ты точно зарегестрирован? \n/start";
+        }
+      }
+
+      if (msg.text == '/shop' && isReadable == false){
+        isReadable = true;
+        message = "И у нас появился свой магазин с мерчем! 🎉🎉🎉 \nВот ссылка:\nhttp://kindcityvcreu.tilda.ws";
+      }
+
+      if (msg.text == '/info' && isReadable == false) {
+        isReadable = true;
+
+        if (userNomber != -1) {
+          var userName = SHEET1.getRange(COLUMS["Имя"] + String(userNomber + 2)).getValue();
+          var userLevel = SHEET1.getRange(COLUMS["Уровень"] + String(userNomber + 2)).getValue();
+          var userTeamLeader = SHEET1.getRange(COLUMS["Тим лидер"] + String(userNomber + 2)).getValue();
+          var userClass = SHEET1.getRange(COLUMS["Класс"] + String(userNomber + 2)).getValue();
+          var userXP = SHEET1.getRange(COLUMS["Опыт"] + String(userNomber + 2)).getValue();
+          var userBedg = SHEET1.getRange(COLUMS["Бэджи"] + String(userNomber + 2)).getValue();
+          var userHP = SHEET1.getRange(COLUMS["Жизни"] + String(userNomber + 2)).getValue();
+
+          message = "Имя: " + userName + "\n" + "Уровень: " + userLevel + "\n" + "Тим-лидер: " + userTeamLeader + "\n";
+          message = message + "Класс: " + userClass + "\n\n" + "Опыт: " + userXP + '\n' + "Бэджи: " + userBedg + "\n";
+          message = message + "Жизни: " + userHP;
+        }
+        else {
+          message = "Информация об участнике не найдена. Ты точно зарегестрирован? \n/start";
+        }
+      }
+
+      if (msg.text == '/start') {
+        isReadable = true;
+
+        if (userNomber == -1) {
+          SHEET1.appendRow([String(id), '', "Волонтер Плехановки", 'Новичок', 0, 0, '♥♥♥'])
+          SHEETACHIVE.appendRow([usersCount + 1, String(id), "нет", 'нет', 'нет', 'нет', 'нет', 'нет', 'нет', "нет", 'нет', 'нет', 'нет', 'нет', 'нет', 'нет', "нет", 'нет', 'нет', 'нет', 'нет', 'нет', 'нет', 'нет'])
+          message = 'Добро пожаловать в город Добрый! Для старта игры введи своё полное ФИО';
+        }
+        else {
+          message = "Ты уже зарегестрирован.";
+        }
+      }
+    }
+
+    if ((msg.text == 'ищу тима' || msg.text == 'Ищу тима') && isReadable == false) {
+      isReadable = true;
+
+      if (userNomber != -1) {
+        var userTeamLeader = SHEET1.getRange(COLUMS["Тим лидер"] + String(userNomber + 2)).getValue();
+        if (userTeamLeader == '') {
+          sendText(SUPPORTID, 'пользователь без тим-лида');
+          sendText(SUPPORTID, userLink);
+          message = 'Сейчас тебе найдём! Запрос уже отправлен, тебе осталось лишь дождаться сообщения от организатора. \n';
+          message = message + "Если понадобится узнать список команд, не стесняйся писать /help. Попробуй сейчас 😉";
+        }
+      }
+    }
+
+    if (isReadable == false) {
+
+      if (userNomber != -1) {
+        var userName = SHEET1.getRange(COLUMS["Имя"] + String(userNomber + 2)).getValue();
+        var userTeamLeader = SHEET1.getRange(COLUMS["Тим лидер"] + String(userNomber + 2)).getValue();
+
+        if (userName == '') {
+          var input = msg.text.split(' ');
+          if (input.length == 3) {
+            SHEET1.getRange(COLUMS["Имя"] + String(userNomber + 2)).setValue(msg.text);
+            message = 'Приятно познакомиться! Я бот "Добрыня" - в любое время обращайся ко мне, чтобы узнать свой прогресс в игре. \n\n'
+            message = "А как зовут твоего тим-лидера? Я знаю Ксюшу, Олю, Иру, Ангелину, Настю. Напиши одно из этих имен. "
+            message = message + "Если тим-лидера нет, мы это исправим, напиши 'Ищу тима'.";
+          }
+          else {
+            message = "Ну как же так? Я же попросил полное ФИО. Давай попробуем ещё раз! Для страта игры укажи своё ФИО полностью.";
+          }
+        }
+        else if (userTeamLeader == '') {
+          if (TEAMLEADERS.includes(msg.text)) {
+            SHEET1.getRange(COLUMS["Тим лидер"] + String(userNomber + 2)).setValue(msg.text);
+            message = "Отлично! Если понадобится узнать список команд, не стесняйся писать /help. Попробуй сейчас 😉";
+          }
+          else {
+            message = "Такого тим-лидера я не нашёл(. Напомню, что я знаю Ксюшу, Олю, Иру, Ангелину. Напиши одно из этих имен.😉 \n";
+            message = message + "Или можешь воспользоваться командой 'Ищу тима', если не знаешь своего.";
+            message = message + "А если ты с прошлого года, то пиши 'с прошлого года'.";
+          }
+        }
+      }
+    }
+
+    var payload = {
+      'method': 'sendMessage',
+      'chat_id': String(chatId),
+      'text': message,
+      'parse_mode': 'HTML'
+    };
+    var data = {
+      "method": "post",
+      "payload": payload
+    };
+    UrlFetchApp.fetch(URL, data);
+  }
+}
