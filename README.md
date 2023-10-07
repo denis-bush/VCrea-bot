@@ -3,6 +3,6 @@
 
 <h2> Примеры работы бота: </h2>
 
-<img src="https://github.com/denis-bush/VCrea-bot/blob/main/Screenshots/vcreabot1.png" height="599"/> 
+<img src="https://github.com/denis-bush/VCrea-bot/blob/main/Screenshots/vcreabot1.png" height="450"/> 
 
 <img src="https://github.com/denis-bush/VCrea-bot/blob/main/Screenshots/vcreabot2.jpg" height="411"/> 
